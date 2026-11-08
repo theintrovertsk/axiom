@@ -2,13 +2,19 @@ import { useState, useEffect } from 'react';
 import { FlatList, Text, Image, TouchableOpacity, View, StyleSheet, StatusBar } from 'react-native';
 import { theme } from './theme';
 import { playTrack } from './player';
+import MiniPlayer from './MiniPlayer';
+import FullPlayer from './FullPlayer';
 
 const CLIENT_ID = process.env.EXPO_PUBLIC_JAMENDO_CLIENT_ID;
 const { colors, radius, spacing } = theme;
 
 export default function App() {
   const [tracks, setTracks] = useState([]);
-  const [currentId, setCurrentId] = useState(null);
+  const [current, setCurrent] = useState(null);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [position, setPosition] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [showFull, setShowFull] = useState(false);
 
   useEffect(() => {
     fetch(`https://api.jamendo.com/v3.0/tracks/?client_id=${CLIENT_ID}&format=json&limit=20&include=musicinfo&audioformat=mp32`)
@@ -17,9 +23,18 @@ export default function App() {
   }, []);
 
   async function handlePlay(track) {
-    setCurrentId(track.id);
-    await playTrack(track.audio, () => {});
+    setCurrent(track);
+    setShowFull(true);
+    await playTrack(track.audio, (status) => {
+      if (status.isLoaded) {
+        setIsPlaying(status.isPlaying);
+        setPosition(status.positionMillis);
+        setDuration(status.durationMillis);
+      }
+    });
   }
+
+  const progress = duration ? position / duration : 0;
 
   return (
     <View style={styles.container}>
@@ -31,7 +46,7 @@ export default function App() {
       <FlatList
         data={tracks}
         keyExtractor={(item) => item.id}
-        contentContainerStyle={{ paddingBottom: 40 }}
+        contentContainerStyle={{ paddingBottom: 120 }}
         renderItem={({ item, index }) => (
           <TouchableOpacity style={styles.card} onPress={() => handlePlay(item)} activeOpacity={0.8}>
             <Text style={styles.index}>{String(index + 1).padStart(2, '0')}</Text>
@@ -40,14 +55,25 @@ export default function App() {
               <Text style={styles.title} numberOfLines={1}>{item.name}</Text>
               <Text style={styles.artist} numberOfLines={1}>{item.artist_name}</Text>
             </View>
-            <View style={[styles.playBtn, currentId === item.id && styles.playBtnActive]}>
-              <Text style={[styles.playIcon, currentId === item.id && { color: colors.cream }]}>
-                {currentId === item.id ? '❚❚' : '▶'}
+            <View style={[styles.playBtn, current?.id === item.id && styles.playBtnActive]}>
+              <Text style={[styles.playIcon, current?.id === item.id && { color: colors.cream }]}>
+                {current?.id === item.id && isPlaying ? '❚❚' : '▶'}
               </Text>
             </View>
           </TouchableOpacity>
         )}
       />
+
+      <MiniPlayer track={current} isPlaying={isPlaying} progress={progress} onOpen={() => setShowFull(true)} />
+
+      {showFull && (
+        <View style={StyleSheet.absoluteFill}>
+          <FullPlayer
+            track={current} isPlaying={isPlaying} position={position} duration={duration}
+            onClose={() => setShowFull(false)}
+          />
+        </View>
+      )}
     </View>
   );
 }
@@ -59,10 +85,8 @@ const styles = StyleSheet.create({
   sub: { color: colors.brownLight, fontSize: 14, marginTop: 4, marginBottom: 22 },
   card: {
     flexDirection: 'row', alignItems: 'center',
-    backgroundColor: colors.creamDark,
-    borderRadius: radius.md,
-    padding: spacing.sm,
-    marginBottom: spacing.sm,
+    backgroundColor: colors.creamDark, borderRadius: radius.md,
+    padding: spacing.sm, marginBottom: spacing.sm,
     borderWidth: 1, borderColor: colors.divider
   },
   index: { width: 26, color: colors.brownLight, fontSize: 12, fontWeight: '600' },
@@ -71,10 +95,8 @@ const styles = StyleSheet.create({
   title: { color: colors.brownDeep, fontSize: 15, fontWeight: '700' },
   artist: { color: colors.brownLight, fontSize: 12.5, marginTop: 3 },
   playBtn: {
-    width: 36, height: 36, borderRadius: 18,
-    backgroundColor: colors.cream,
-    borderWidth: 1, borderColor: colors.accent,
-    alignItems: 'center', justifyContent: 'center'
+    width: 36, height: 36, borderRadius: 18, backgroundColor: colors.cream,
+    borderWidth: 1, borderColor: colors.accent, alignItems: 'center', justifyContent: 'center'
   },
   playBtnActive: { backgroundColor: colors.brown },
   playIcon: { color: colors.brown, fontSize: 12 }
