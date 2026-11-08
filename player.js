@@ -16,6 +16,10 @@ export async function togglePlay() {
   status.isPlaying ? await sound.pauseAsync() : await sound.playAsync();
 }
 
+export async function seekTo(ms) {
+  if (sound) await sound.setPositionAsync(ms);
+}
+
 export async function stopTrack() {
   if (sound) { await sound.unloadAsync(); sound = null; }
 }
